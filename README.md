@@ -70,8 +70,8 @@
 1. 克隆项目后进入项目目录：
 
    ```
-   git clone https://github.com/your-repo/education-knowledge-graph.git
-   cd education-knowledge-graph
+   git clone https://github.com/lvfengfree/eduNeo4j.git
+   cd eduNeo4j
    ```
 
 2. 安装依赖包：
