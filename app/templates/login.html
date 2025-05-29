@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教育问答系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .image-section {
+            flex: 1;
+            background: url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80') center/cover no-repeat;
+            position: relative;
+        }
+        
+        .image-section::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 119, 182, 0.5);
+        }
+        
+        .image-content {
+            position: relative;
+            z-index: 1;
+            color: white;
+            padding: 40px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .image-content h2 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .image-content p {
+            font-size: 16px;
+            line-height: 1.6;
+            max-width: 80%;
+        }
+        
+        .form-section {
+            width: 50%;
+            max-width: 500px;
+            padding: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background-color: white;
+            overflow-y: auto;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            color: #333;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            border-color: #0077b6;
+            outline: none;
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(90deg, #0077b6 0%, #00b4d8 100%);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.3s;
+            margin-top: 10px;
+        }
+        
+        .login-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .register-link {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .register-link a {
+            color: #0077b6;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #999;
+            font-size: 12px;
+        }
+
+        /* 新增：错误提示样式 */
+        .error-message {
+            color: #ff4444;
+            font-size: 14px;
+            margin-top: 5px;
+            text-align: center;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .image-section, .form-section {
+                width: 100%;
+                max-width: 100%;
+            }
+
+            .image-section {
+                height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="image-section">
+        <div class="image-content">
+            <h2>智慧教育平台</h2>
+            <p>教育领域知识图谱的构建，整合优质教育资源与先进教学理念。为师生提供精准的学习支持与教学辅助。</p>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="logo">
+            <h1>教育知识图谱系统</h1>
+        </div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" placeholder="请输入您的用户名" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" placeholder="请输入您的密码" required>
+            </div>
+
+            <!-- 错误提示 -->
+            <div id="errorMessage" class="error-message"></div>
+
+            <button type="submit" class="login-btn">立即登录</button>
+
+            <div class="register-link">
+                还没有账号？<a href="/sign-page">立即注册</a>
+            </div>
+        </form>
+
+        <div class="footer">
+            教育知识图谱构建，融合学术资源与教学实践数据
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // 阻止表单默认提交
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorElement = document.getElementById('errorMessage');
+
+            // 清除之前的错误提示
+            errorElement.style.display = 'none';
+            errorElement.textContent = '';
+
+            // 发送登录请求
+            fetch('/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                }),
+                credentials: 'include' // 确保携带cookie
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // 登录成功，跳转到首页
+                    window.location.href = '/home-page';
+                } else {
+                    // 显示错误信息
+                    errorElement.textContent = data.error || '登录失败';
+                    errorElement.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                errorElement.textContent = error.error || '网络错误，请稍后重试';
+                errorElement.style.display = 'block';
+                console.error('登录错误:', error);
+            });
+        });
+
+        // 检查是否已登录（防止已登录用户重复登录）
+        fetch('/api/check-auth', {
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.isAuthenticated) {
+                window.location.href = '/home-page';
+            }
+        });
+    </script>
+</body>
+</html>

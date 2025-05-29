@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>教育数据可视化</title>
+  <script src="{{ url_for('static', filename='js/echarts.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/echarts-wordcloud.js') }}"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vis-network@9.1.0/dist/vis-network.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      height: 100vh;
+      background-color: #f6fbfe;
+    }
+
+    .sidebar {
+      position: fixed;
+      width: 220px;
+      background-color: #111827;
+      color: white;
+      padding: 20px;
+      box-sizing: border-box;
+      height: 100vh;
+      z-index: 100;
+    }
+
+    .sidebar h2 {
+      font-size: 18px;
+      margin-bottom: 40px;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .sidebar li {
+      margin: 20px 0;
+      cursor: pointer;
+      padding: 10px;
+      border-radius: 6px;
+      transition: background 0.3s;
+    }
+
+    .sidebar li:hover,
+    .sidebar li.active {
+      background-color: #374151;
+    }
+
+    .content {
+      flex-grow: 1;
+      background-color: #f3f4f6;
+      box-sizing: border-box;
+      padding: 20px 60px;
+      overflow-y: auto;
+      min-height: calc(100vh - 40px);
+      margin-left: 220px;
+      padding-top: 70px;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+      animation: fadeIn 0.5s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .chart-container {
+      width: 100%;
+      height: calc(100vh - 120px);
+      margin-bottom: 30px;
+      display: flex;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .chart {
+      flex: 0 0 60%;
+      height: 100%;
+    }
+
+    .chart-description {
+      flex: 0 0 40%;
+      padding: 20px;
+      background-color: #f8f9fa;
+      overflow-y: auto;
+    }
+
+    .stat-card {
+      flex: 1;
+      min-width: 200px;
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin: 10px;
+    }
+
+    @media (max-width: 768px) {
+      .content {
+        padding: 20px;
+        margin-left: 0;
+      }
+
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
+
+      .sidebar.active {
+        transform: translateX(0);
+      }
+
+      .chart-container {
+        flex-direction: column;
+        height: auto;
+      }
+
+      .chart, .chart-description {
+        flex: 1 1 100%;
+        width: 100%;
+      }
+    }
+
+  /*    1111111111      */
+    /* 顶部栏 */
+    .topbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      background-color: #111827;
+      color: white;
+      padding: 10px 20px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+    }
+
+    .topbar .user-info {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      margin-right: 20px;
+    }
+
+    .topbar .user-info img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+
+    .topbar .user-name {
+      font-size: 16px;
+    }
+
+    .topbar .logout-btn {
+      background-color: #f59e0b;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .topbar .logout-btn:hover {
+      background-color: #ec4899;
+    }
+    .search-type {
+      margin: 15px 0;
+    }
+    .search-type button {
+      padding: 8px 15px;
+      margin-right: 10px;
+      background: #eee;
+      border: 1px solid #ddd;
+      cursor: pointer;
+    }
+    .search-type button.active {
+      background: #4CAF50;
+      color: white;
+      border-color: #45a049;
+    }
+    .search-section {
+      margin-bottom: 20px;
+    }
+    input[type="text"] {
+      padding: 8px;
+      width: 300px;
+      margin-right: 10px;
+    }
+    button {
+      padding: 8px 15px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+
+
+
+  </style>
+</head>
+
+<body>
+<!--顶部栏-->
+<div class="topbar">
+  <div class="user-info" onclick="toggleUserInfo()">
+    <img src="{{ url_for('static', filename='img/admin.png') }}" alt="User Avatar" />
+    <div class="user-name" id="username">用户名</div>
+  </div>
+  <button class="logout-btn" onclick="logout()">登出</button>
+  <script>
+    function logout() {
+      fetch('/api/logout', {
+        method: 'POST',  // 使用 POST 请求
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})  // 空的请求体
+      })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  // 直接跳转到登录页面
+                  window.location.replace("http://localhost:5000/logout");
+                  window.location.reload();  // 刷新页面
+                  window.location.reload();  // 刷新页面
+                } else {
+                  alert('登出失败');
+                }
+              })
+              .catch(error => {
+                console.error('登出请求错误:', error);
+              });
+    }
+  </script>
+</div>
+
+
+
+
+<!--侧边栏-->
+<div class="sidebar">
+  <h2>教育图谱可视化</h2>
+  <ul>
+    <li class="nav-item" data-page="home">🏠 首页</li>
+    <li class="nav-item" data-page="chart">📊 可视图表</li>
+    <li class="nav-item" data-page="data">🗃 数据管理</li>
+    <li class="nav-item" data-page="query">📈 图数据查询</li>
+    <li class="nav-item" data-page="analyze">🧠 图数据分析</li>
+  </ul>
+
+</div>
+
+<!-- 首页内容 -->
+<div class="content" style="background-color:#f6fbfe">
+  <div id="home" class="page active">
+    <h1 style="font-size: 50px">教育数据知识图谱可视化分析系统</h1>
+    <p style="color: #555; margin-bottom: 30px;">
+      本系统致力于构建一个完整的教育知识图谱，实现学生、教师、课程、知识点等多维度数据的可视化管理与智能分析。
+    </p>
+
+    <!-- 统计卡片 -->
+    <div style="display: flex; flex-wrap: wrap; margin-bottom: 40px;">
+      <div class="stat-card" style="background: #3b82f6;">
+        👩‍🎓 用户数量<br><strong style="font-size: 24px;" id="user-count">820+</strong>
+      </div>
+      <div class="stat-card" style="background: #10b981;">
+        👨‍🏫 教师数量<br><strong style="font-size: 24px;" id="teacher-count">125+</strong>
+      </div>
+      <div class="stat-card" style="background: #f59e0b;">
+        📚 课程总数<br><strong style="font-size: 24px;" id="course-count">230+</strong>
+      </div>
+      <div class="stat-card" style="background: #ec4899;">
+        🧠 知识点数量<br><strong style="font-size: 24px;" id="knowledge-count">5420+</strong>
+      </div>
+    </div>
+
+    <script>
+      // 调用 API 获取数据
+      async function fetchData() {
+        try {
+          const response = await fetch('http://localhost:5000/api/indexSum');
+          if (!response.ok) throw new Error('网络响应失败');
+
+          const responseData = await response.json();
+          if (responseData.success) {
+            const [userCount, teacherCount, courseCount, knowledgeCount] = responseData.data;
+            document.getElementById('user-count').textContent = userCount + "+";
+            document.getElementById('teacher-count').textContent = teacherCount + "+";
+            document.getElementById('course-count').textContent = courseCount + "+";
+            document.getElementById('knowledge-count').textContent = knowledgeCount + "+";
+          }
+        } catch (error) {
+          console.error('请求失败:', error);
+        }
+      }
+      document.addEventListener('DOMContentLoaded', fetchData);
+    </script>
+
+<!--    <div style="background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">-->
+<!--      <h3 style="margin-top: 0;">📢 系统公告</h3>-->
+<!--      <ul style="padding-left: 20px; color: #333;">-->
+<!--        <li>2025-04-01：新增教师图谱导入功能，支持一键上传教学关系。</li>-->
+<!--        <li>2025-03-20：系统上线测试版，欢迎试用并反馈问题。</li>-->
+<!--        <li>2025-03-10：完成学生-课程-知识点关联关系构建。</li>-->
+<!--      </ul>-->
+<!--    </div>-->
+    <div style="background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+      <img src="{{ url_for('static', filename='img/index.jpg') }}" alt="User Avatar" style="width: 100%; height: auto; border-radius: 10px;" />
+    </div>
+  </div>
+
+  <!-- 可视图表内容 -->
+  <div id="chart" class="page">
+    <h1>最热门的课程top10</h1>
+    <div class="chart-container">
+      <div id="chart1" class="chart"></div>
+      <div class="chart-description">
+        <h3>课程数量分析</h3>
+        <p>本图表展示了各学科的课程数量分布情况。从图中可以看出：</p>
+        <ul>
+          <li>语文和数学课程数量最多</li>
+          <li>理科课程数量相对均衡</li>
+          <li>英语课程数量位居第三</li>
+        </ul>
+      </div>
+    </div>
+
+    <h1>最冷门的课程top10</h1>
+    <div class="chart-container">
+      <div id="chart2" class="chart"></div>
+      <div class="chart-description">
+        <h3>知识点分布分析</h3>
+        <p>本图表展示了各类知识点的占比情况：</p>
+        <ul>
+          <li>基础概念占比约30%</li>
+          <li>公式定理占比约25%</li>
+          <li>应用技能占比约20%</li>
+          <li>综合能力占比约15%</li>
+          <li>拓展知识占比约10%</li>
+        </ul>
+      </div>
+    </div>
+
+    <h1>上课次数最多老师top10</h1>
+    <div class="chart-container">
+      <div id="chart3" class="chart"></div>
+      <div class="chart-description">
+        <h3>教学关系分析</h3>
+        <p>本图表展示了教师、课程和学生之间的关系网络：</p>
+        <ul>
+          <li>张老师负责高等数学课程</li>
+          <li>李老师负责大学英语课程</li>
+          <li>学生A同时选修了数学和英语</li>
+          <li>学生B只选修了数学课程</li>
+        </ul>
+      </div>
+    </div>
+
+    <h1>热门课程关键词</h1>
+    <div class="chart-container">
+      <div id="chart4" class="chart"></div>
+      <div class="chart-description">
+        <h3>教学关系分析</h3>
+        <p>本图表展示了教师、课程和学生之间的关系网络：</p>
+        <ul>
+          <li>张老师负责高等数学课程</li>
+          <li>李老师负责大学英语课程</li>
+          <li>学生A同时选修了数学和英语</li>
+          <li>学生B只选修了数学课程</li>
+        </ul>
+      </div>
+    </div>
+
+    <h1>5</h1>
+    <div class="chart-container">
+      <div id="chart5" class="chart"></div>
+      <div class="chart-description">
+        <h3>教学关系分析</h3>
+        <p>本图表展示了教师、课程和学生之间的关系网络：</p>
+        <ul>
+          <li>张老师负责高等数学课程</li>
+          <li>李老师负责大学英语课程</li>
+          <li>学生A同时选修了数学和英语</li>
+          <li>学生B只选修了数学课程</li>
+        </ul>
+      </div>
+    </div>
+
+    <h1>不同学院的课程数量</h1>
+    <div class="chart-container">
+      <div id="chart6" class="chart"></div>
+      <div class="chart-description">
+        <h3>教学关系分析</h3>
+        <p>本图表展示了教师、课程和学生之间的关系网络：</p>
+        <ul>
+          <li>张老师负责高等数学课程</li>
+          <li>李老师负责大学英语课程</li>
+          <li>学生A同时选修了数学和英语</li>
+          <li>学生B只选修了数学课程</li>
+        </ul>
+      </div>
+    </div>
+
+
+
+  </div>
+
+<!--now !!-->
+<!--  <div id="data" class="page">-->
+<!--    <div class="data-management-section">-->
+<!--      <h1>课程信息管理</h1>-->
+
+<!--      <form id="course-form" action="/submit-course" method="POST">-->
+<!--        &lt;!&ndash; 课程输入 &ndash;&gt;-->
+<!--        <div>-->
+<!--          <label for="course_name">课程名称</label>-->
+<!--          <input type="text" id="course_name" name="course_name" placeholder="请输入课程名称" required>-->
+<!--        </div>-->
+
+<!--        &lt;!&ndash; 教师输入（多个教师）&ndash;&gt;-->
+<!--        <div style="grid-column: span 2;">-->
+<!--          <label>教师信息</label>-->
+<!--          <div class="instructors-container" id="instructor-inputs">-->
+<!--            <div class="instructor-input">-->
+<!--              <input type="text" name="instructor_name[]" placeholder="请输入教师姓名" required>-->
+<!--            </div>-->
+<!--          </div>-->
+<!--          <button type="button" class="add-instructor-btn" onclick="addInstructor()">-->
+<!--            + 添加更多教师-->
+<!--          </button>-->
+<!--        </div>-->
+
+<!--        &lt;!&ndash; 学校输入 &ndash;&gt;-->
+<!--        <div>-->
+<!--          <label for="school_name">所属学校</label>-->
+<!--          <input type="text" id="school_name" name="school_name" placeholder="请输入学校名称" required>-->
+<!--        </div>-->
+
+<!--        &lt;!&ndash; 提交按钮 &ndash;&gt;-->
+<!--        <div style="grid-column: span 2;">-->
+<!--          <button type="submit">提交数据</button>-->
+<!--        </div>-->
+<!--      </form>-->
+
+<!--      &lt;!&ndash; 反馈消息显示区域 &ndash;&gt;-->
+<!--      <div id="feedback-message"></div>-->
+<!--    </div>-->
+<!--  </div>-->
+  <div id="data" class="page" style="width: 94%; max-width: 1600px; margin: 0 auto; background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 35px;">
+    <!-- 装饰性元素 -->
+    <div style="position: absolute; top: 0; left: 0; width: 8px; height: 100%; background: linear-gradient(to bottom, #5c6bc0, #8e99f3); border-radius: 12px 0 0 12px;"></div>
+    <div style="position: absolute; top: 0; right: 0; width: 8px; height: 100%; background: linear-gradient(to bottom, #5c6bc0, #8e99f3); border-radius: 0 12px 12px 0;"></div>
+
+    <div class="data-management-section" style="display: flex; flex-direction: column; gap: 30px;">
+      <div style="text-align: center;">
+        <h1 style="color: #5c6bc0; margin-bottom: 10px; font-weight: 600; font-size: 28px;">课程信息管理</h1>
+        <div style="height: 3px; width: 60px; background: linear-gradient(to right, #5c6bc0, #8e99f3); margin: 0 auto; border-radius: 3px;"></div>
+      </div>
+
+      <form id="course-form" action="/submit-course" method="POST" style="display: grid; grid-template-columns: 1fr; gap: 25px;">
+        <!-- 课程输入模块 -->
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px; background-color: #f8f9fa; position: relative;">
+          <div style="position: absolute; top: -10px; left: 20px; background: white; padding: 0 10px; color: #5c6bc0; font-weight: 500;">课程信息</div>
+          <label for="course_name" style="font-weight: 500; color: #555; margin-bottom: 12px; display: block;">课程名称</label>
+          <input type="text" id="course_name" name="course_name" placeholder="请输入课程名称" required
+                 style="padding: 14px 16px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box;">
+        </div>
+
+        <!-- 教师输入模块 -->
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px; background-color: #f8f9fa; position: relative;">
+          <div style="position: absolute; top: -10px; left: 20px; background: white; padding: 0 10px; color: #5c6bc0; font-weight: 500;">教师信息</div>
+          <label style="font-weight: 500; color: #555; margin-bottom: 12px; display: block;">教师列表</label>
+          <div class="instructors-container" id="instructor-inputs" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px;">
+            <div class="instructor-input" style="display: flex; gap: 12px; align-items: center;">
+              <input type="text" name="instructor_name[]" placeholder="请输入教师姓名" required
+                     style="padding: 14px 16px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box;">
+              <button type="button" onclick="this.parentElement.remove()"
+                      style="background: none; border: none; color: #dc3545; font-size: 22px; cursor: pointer; padding: 5px 10px; flex-shrink: 0;">×</button>
+            </div>
+          </div>
+          <button type="button" class="add-instructor-btn" onclick="addInstructor()"
+                  style="padding: 14px 16px; border: 1px dashed #5c6bc0; border-radius: 6px; font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box; background-color: rgba(92, 107, 192, 0.05); color: #5c6bc0; text-align: center; font-weight: 500;">
+            <span style="font-size: 18px;">+</span> 添加更多教师
+          </button>
+        </div>
+
+        <!-- 学校输入模块 -->
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px; background-color: #f8f9fa; position: relative;">
+          <div style="position: absolute; top: -10px; left: 20px; background: white; padding: 0 10px; color: #5c6bc0; font-weight: 500;">学校信息</div>
+          <label for="school_name" style="font-weight: 500; color: #555; margin-bottom: 12px; display: block;">所属学校</label>
+          <input type="text" id="school_name" name="school_name" placeholder="请输入学校名称" required
+                 style="padding: 14px 16px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box;">
+        </div>
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px; background-color: #f8f9fa; position: relative;">
+          <div style="position: absolute; top: -10px; left: 20px; background: white; padding: 0 10px; color: #5c6bc0; font-weight: 500;">开始日期</div>
+          <label for="start_date" style="font-weight: 500; color: #555; margin-bottom: 12px; display: block;">请选择课程开始时间</label>
+          <input type="date" id="start_date" name="start_date" required
+                 style="padding: 14px 16px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box;">
+        </div>
+
+        <!-- 结束日期输入模块 -->
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px; background-color: #f8f9fa; position: relative;">
+          <div style="position: absolute; top: -10px; left: 20px; background: white; padding: 0 10px; color: #5c6bc0; font-weight: 500;">结束日期</div>
+          <label for="end_date" style="font-weight: 500; color: #555; margin-bottom: 12px; display: block;">请选择课程结束时间</label>
+          <input type="date" id="end_date" name="end_date" required
+                 style="padding: 14px 16px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box;">
+        </div>
+
+        <!-- 注册人数输入模块 -->
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px; background-color: #f8f9fa; position: relative;">
+          <div style="position: absolute; top: -10px; left: 20px; background: white; padding: 0 10px; color: #5c6bc0; font-weight: 500;">注册人数</div>
+          <label for="enrollment_count" style="font-weight: 500; color: #555; margin-bottom: 12px; display: block;">请输入注册人数</label>
+          <input type="number" id="enrollment_count" name="enrollment_count" min="0" placeholder="例如：120" required
+                 style="padding: 14px 16px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box;">
+        </div>
+
+        <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 25px; background-color: #f8f9fa; position: relative;">
+          <div style="position: absolute; top: -10px; left: 20px; background: white; padding: 0 10px; color: #5c6bc0; font-weight: 500;">开课次数</div>
+          <label for="classSum" style="font-weight: 500; color: #555; margin-bottom: 12px; display: block;">请输入开课次数</label>
+          <input type="number" id="classSum" name="course_open_count" min="0" placeholder="例如：6" required
+                 style="padding: 14px 16px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box;">
+        </div>
+
+        <!-- 提交按钮模块 -->
+        <div style="text-align: center; margin-top: 10px;">
+          <button type="submit"
+                  style="padding: 14px 40px; background: linear-gradient(to right, #5c6bc0, #8e99f3); color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(92, 107, 192, 0.25);">
+            提交数据
+          </button>
+        </div>
+      </form>
+
+      <!-- 反馈消息显示区域 -->
+      <div id="feedback-message" style="display: none; padding: 15px; border-radius: 6px; margin-top: 20px; text-align: center; font-weight: 500;"></div>
+    </div>
+  </div>
+
+  <script>
+    // 动态添加教师输入框
+    function addInstructor() {
+      const instructorContainer = document.getElementById("instructor-inputs");
+      const newInputDiv = document.createElement("div");
+      newInputDiv.className = "instructor-input";
+      newInputDiv.style.display = "flex";
+      newInputDiv.style.gap = "12px";
+      newInputDiv.style.alignItems = "center";
+      newInputDiv.style.marginBottom = "12px";
+
+      newInputDiv.innerHTML = `
+      <input type="text" name="instructor_name[]" placeholder="请输入教师姓名（必填）" required
+             style="padding: 14px 16px; border: 1px solid #dee2e6; border-radius: 6px;
+                    font-size: 16px; transition: all 0.3s ease; width: 100%; box-sizing: border-box;">
+      <button type="button" onclick="this.parentElement.remove()"
+              style="background: none; border: none; color: #dc3545; font-size: 22px;
+                    cursor: pointer; padding: 5px 10px; flex-shrink: 0;">×</button>
+    `;
+      instructorContainer.appendChild(newInputDiv);
+      newInputDiv.querySelector("input").focus();
+    }
+
+    // 处理表单提交
+    document.getElementById("course-form").addEventListener("submit", async function(event) {
+      event.preventDefault();
+
+      const feedbackDiv = document.getElementById("feedback-message");
+      feedbackDiv.style.display = "block";
+      feedbackDiv.textContent = "提交中，请稍候...";
+      feedbackDiv.style.backgroundColor = "#f8f9fa";
+      feedbackDiv.style.color = "#333";
+
+      try {
+        // 验证必填字段
+        const courseName = document.getElementById("course_name").value.trim();
+        const schoolName = document.getElementById("school_name").value.trim();
+        const startDate = document.getElementById("start_date").value;
+        const endDate = document.getElementById("end_date").value;
+
+        if (!courseName || !schoolName || !startDate || !endDate) {
+          throw new Error("课程名称、学校名称和日期都是必填项");
+        }
+
+        // 收集所有教师姓名（确保至少有一个教师）
+        const instructorInputs = Array.from(document.querySelectorAll('[name="instructor_name[]"]'));
+        const instructorNames = instructorInputs
+                .map(input => input.value.trim())
+                .filter(name => name !== "");
+
+        if (instructorNames.length === 0) {
+          throw new Error("至少需要填写一位教师");
+        }
+
+        // 构建请求数据
+        const requestData = {
+          course_names: [courseName],
+          instructor_names_list: [instructorNames], // 二维数组
+          school_names: [schoolName],
+          start_dates: [startDate],
+          end_dates: [endDate],
+          enrollment_counts: [parseInt(document.getElementById("enrollment_count").value) || 0],
+          course_open_counts: [parseInt(document.getElementById("classSum").value) || 1]
+        };
+
+        console.log("提交数据:", JSON.stringify(requestData, null, 2));
+
+        // 发送请求
+        const response = await fetch('/submit-course', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          feedbackDiv.textContent = result.message || "数据提交成功！";
+          feedbackDiv.style.backgroundColor = "#d4edda";
+          feedbackDiv.style.color = "#155724";
+
+          setTimeout(() => {
+            feedbackDiv.style.display = "none";
+            event.target.reset();
+          }, 3000);
+        } else {
+          throw new Error(result.message || "提交失败");
+        }
+      } catch (error) {
+        console.error("提交错误:", error);
+        feedbackDiv.textContent = error.message || "提交出错，请检查数据后重试";
+        feedbackDiv.style.backgroundColor = "#f8d7da";
+        feedbackDiv.style.color = "#721c24";
+      }
+    });
+
+    // 初始加载时确保至少有一个教师输入框
+    document.addEventListener('DOMContentLoaded', function() {
+      if (document.querySelectorAll('[name="instructor_name[]"]').length === 0) {
+        addInstructor();
+      }
+    });
+  </script>
+  <div id="query" class="page" style="
+    max-width: 1600px;
+    margin: 20px auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow:
+        0 6px 18px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(0, 0, 0, 0.04),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+    padding: 20px;
+    position: relative;
+    border: 1px solid #e0e0e0;
+    border-top: 1px solid #f0f0f0;
+    border-bottom: 1px solid #d0d0d0;
+    background-color: #fafafa;
+    ">
+    <h2 style="color: #5c6bc0; margin-bottom: 10px; font-weight: 600; font-size: 28px; text-align: center;">
+      知识图谱查询
+    </h2>
+    <div id="heng" style="height: 3px; width: 60px; background: linear-gradient(to right, #5c6bc0, #8e99f3); margin: 0 auto; border-radius: 3px;"></div>
+    <!-- 搜索类型选择 -->
+    <div class="search-type" id="searchType" style="margin-top: 30px; text-align: center;">
+      <button id="searchCourseBtn" class="active" onclick="setSearchType('course')" style="padding: 10px 20px; font-size: 16px; background-color: #5c6bc0; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+        课程查询</button>
+      <button id="searchTeacherBtn" onclick="setSearchType('teacher')" style="padding: 10px 20px; font-size: 16px; background-color: #5c6bc0; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        教师查询
+      </button>
+    </div>
+
+    <!-- 课程查询部分 -->
+    <div id="courseSearch" class="search-section" style="margin-top: 30px;">
+      <h3 style="font-size: 24px; color: #333;" align="center">输入课程名称查询相关课程</h3>
+      <div class="search-box" style="display: flex; justify-content: center; gap: 10px; margin-top: 15px;">
+        <input type="text" id="courseName" placeholder="输入课程名称" style="padding: 10px 15px; width: 300px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc;">
+        <button onclick="searchCourse()" id="button1" style="padding: 10px 20px; background-color: #5c6bc0; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer;">
+          查询课程
+        </button>
+
+      </div>
+    </div>
+
+    <!-- 教师查询部分 -->
+    <div id="teacherSearch" class="search-section" style="display:none; margin-top: 30px;">
+      <h3 style="font-size: 24px; color: #333;" align="center">输入教师姓名查询教学关系</h3>
+      <div class="search-box" style="display: flex; justify-content: center; gap: 10px; margin-top: 15px;">
+        <input type="text" id="teacherName" placeholder="输入教师姓名" style="padding: 10px 15px; width: 300px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc;">
+        <button onclick="searchTeacher()" id="button2" style="padding: 10px 20px; background-color: #5c6bc0; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer;">查询教师</button>
+      </div>
+    </div>
+
+    <!-- 可视化容器 -->
+    <div id="graph-container" style="margin-top: 40px;">
+      <div id="graph" style="width:100%; height:600px; border-radius: 10px; background-color: #ffffff; border: 1px solid #ddd;"></div>
+      <div id="graph-info" style="margin-top: 20px; font-size: 16px; color: #333;"></div>
+    </div>
+    <div id="heng2" style="height: 3px; width: 60px; background: linear-gradient(to right, #5c6bc0, #8e99f3); margin: 0 auto; border-radius: 3px;"></div>
+<!--    </div>-->
+  <!--    <style>-->
+<!--      .search-type {-->
+<!--        margin: 20px 0;-->
+<!--        display: flex;-->
+<!--        gap: 10px;-->
+<!--      }-->
+<!--      .search-type button {-->
+<!--        padding: 8px 16px;-->
+<!--        background: #f0f0f0;-->
+<!--        border: 1px solid #ddd;-->
+<!--        border-radius: 4px;-->
+<!--        cursor: pointer;-->
+<!--      }-->
+<!--      .search-type button.active {-->
+<!--        background: #4A90E2;-->
+<!--        color: white;-->
+<!--        border-color: #4A90E2;-->
+<!--      }-->
+<!--      .search-section {-->
+<!--        margin-bottom: 20px;-->
+<!--      }-->
+<!--      .search-box {-->
+<!--        display: flex;-->
+<!--        gap: 10px;-->
+<!--        max-width: 500px;-->
+<!--      }-->
+<!--      .search-box input {-->
+<!--        flex: 1;-->
+<!--        padding: 8px;-->
+<!--        border: 1px solid #ddd;-->
+<!--        border-radius: 4px;-->
+<!--      }-->
+<!--      .search-box button {-->
+<!--        padding: 8px 16px;-->
+<!--        background: #4A90E2;-->
+<!--        color: white;-->
+<!--        border: none;-->
+<!--        border-radius: 4px;-->
+<!--        cursor: pointer;-->
+<!--      }-->
+<!--      #graph-container {-->
+<!--        margin-top: 20px;-->
+<!--        border: 1px solid #eee;-->
+<!--        border-radius: 4px;-->
+<!--        padding: 10px;-->
+<!--        background: white;-->
+<!--      }-->
+<!--      #graph-info {-->
+<!--        margin-top: 10px;-->
+<!--        padding: 10px;-->
+<!--        background: #f9f9f9;-->
+<!--        border-radius: 4px;-->
+<!--        font-size: 14px;-->
+<!--      }-->
+<!--    </style>-->
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // 设置搜索类型
+        window.setSearchType = function(type) {
+          document.getElementById('searchCourseBtn').classList.remove('active');
+          document.getElementById('searchTeacherBtn').classList.remove('active');
+          document.getElementById('courseSearch').style.display = 'none';
+          document.getElementById('teacherSearch').style.display = 'none';
+
+          if (type === 'course') {
+            document.getElementById('searchCourseBtn').classList.add('active');
+            document.getElementById('courseSearch').style.display = 'block';
+          } else {
+            document.getElementById('searchTeacherBtn').classList.add('active');
+            document.getElementById('teacherSearch').style.display = 'block';
+          }
+
+          // 清空图形和输入框
+          document.getElementById('graph').innerHTML = '';
+          document.getElementById('graph-info').innerHTML = '';
+        };
+
+        // 课程查询函数
+        window.searchCourse = function() {
+          const courseName = document.getElementById("courseName").value.trim();
+          if (!courseName) {
+            alert("请输入课程名称！");
+            return;
+          }
+
+          showLoading(true, `正在查询课程: ${courseName}`);
+
+          // 先滚动到图形区域
+          scrollToGraph();
+
+          fetch(`http://localhost:5000/api/searchClass?course_name=${encodeURIComponent(courseName)}`)
+                  .then(handleResponse)
+                  .then(data => {
+                    if (!data || !data.course_name) {
+                      throw new Error('返回数据格式不正确，缺少course_name字段');
+                    }
+                    drawCourseGraph(data);
+                    showGraphInfo(data);
+                  })
+                  .catch(handleError);
+        };
+
+        // 教师查询函数
+        window.searchTeacher = function() {
+          const teacherName = document.getElementById("teacherName").value.trim();
+          if (!teacherName) {
+            alert("请输入教师姓名！");
+            return;
+          }
+
+          showLoading(true, `正在查询教师: ${teacherName}`);
+
+          // 先滚动到图形区域
+          scrollToGraph();
+
+          fetch(`http://localhost:5000/api/searchTeacher?teacher_name=${encodeURIComponent(teacherName)}`)
+                  .then(handleResponse)
+                  .then(data => {
+                    if (!data || !data.teacher) {
+                      throw new Error('返回数据格式不正确，缺少teacher字段');
+                    }
+                    drawTeacherGraph(data);
+                    showGraphInfo(data);
+                  })
+                  .catch(handleError);
+        };
+
+        // 滚动到图形区域的函数
+        function scrollToGraph() {
+          const graphSection = document.getElementById('graph-section');
+          if (graphSection) {
+            graphSection.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+
+            // 如果有固定导航栏，可以添加偏移量
+            // window.scrollBy(0, -50);
+          }
+        }
+
+        // 通用响应处理
+        function handleResponse(response) {
+          if (!response.ok) {
+            throw new Error('网络响应不正常');
+          }
+          return response.json();
+        }
+
+        // 错误处理
+        function handleError(error) {
+          console.error("查询错误:", error);
+          showLoading(false);
+          alert("查询失败: " + error.message);
+        }
+
+        // 显示/隐藏加载状态
+        function showLoading(show, message = '') {
+          const infoDiv = document.getElementById('graph-info');
+          infoDiv.innerHTML = show ? `<div class="loading">${message}...</div>` : '';
+        }
+
+        // 显示图形信息
+        function showGraphInfo(data) {
+          showLoading(false);
+          let info = "";
+
+// 判断是否有课程数据
+          if (data.course_name) {
+            info += `<p>课程: <strong>${data.course_name}</strong></p>`;
+            if (data.teachers) {
+              info += `<p>授课教师: ${data.teachers.join(', ')}</p>`;
+            }
+            if (data.related_courses) {
+              info += `<p>相关课程: ${data.related_courses.join(', ')}</p>`;
+            }
+
+
+            // // 确保页面加载完成后执行
+            // document.addEventListener('DOMContentLoaded', function() {
+            //   // 获取按钮元素
+            //   const button = document.getElementById("scrollToTop");
+            //   // 确保按钮存在
+            //   if (button) {
+            //     // 添加点击事件监听
+            //     button.addEventListener('click', function() {
+            //       console.log('按钮已点击');  // 调试信息
+            //       window.scrollTo({
+            //         top: 0,           // 滚动到页面顶部
+            //         behavior: 'smooth' // 平滑滚动
+            //       });
+            //     });
+            //   } else {
+            //     console.log('按钮未找到');
+            //   }
+            // });
+
+// 判断是否有教师数据
+          } else if (data.teacher) {
+            info += `<p>教师: <strong>${data.teacher.name}</strong></p>`;
+            if (data.courses) {
+              const courses = data.courses.map(c => c.course).join(', ');
+              info += `<p>教授课程: ${courses}</p>`;
+            }
+            if (data.school) {
+              info += `<p>所属学院: ${data.school.name}</p>`;
+            }
+
+            // 生成按钮并绑定事件，点击按钮后滚动到页面顶部
+  //           info += `
+  //           <button id="scrollToTop" style="padding: 10px 20px; background-color: #5c6bc0; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; margin-top: 15px;">
+  //               滚动到页面顶部
+  //            </button>
+  // `;
+
+            // 添加事件监听，点击按钮滚动到页面顶部
+            document.getElementById('scrollToTop')?.addEventListener('click', function() {
+              window.scrollTo({
+                top: 0,           // 滚动到页面顶部
+                behavior: 'smooth' // 平滑滚动
+              });
+            });
+          }
+
+
+          document.getElementById('graph-info').innerHTML = info;
+        }
+
+        // 绘制课程关系图
+        function drawCourseGraph(data) {
+          const nodes = new vis.DataSet();
+          const edges = new vis.DataSet();
+
+          // 添加主课程节点
+          nodes.add(createNode(data.course_name, {
+            shape: 'box',
+            color: '#4A90E2',
+            size: 25,
+            font: { size: 16, bold: true },
+            borderWidth: 3,
+            shadow: true
+          }));
+
+          // 添加相关课程
+          if (data.related_courses && data.course_relationships) {
+            const minLength = Math.min(data.related_courses.length, data.course_relationships.length);
+            for (let i = 0; i < minLength; i++) {
+              const course = data.related_courses[i];
+              nodes.add(createNode(course, {
+                shape: 'box',
+                color: '#97C2FC',
+                font: { size: 14 }
+              }));
+
+              // 为每个关系添加边，增加弧度和长度变化
+              data.course_relationships.forEach((relation, index) => {
+                edges.add(createEdge(data.course_name, course, {
+                  label: relation,
+                  color: '#4A90E2',
+                  smooth: { type: 'continuous', roundness: 0.6 + (index * 0.3) }, // 增加弧度
+                  length: 250 + (index * 30) // 增加边长度避免重叠
+                }));
+              });
+            }
+          }
+
+          // 添加教师
+          if (data.teachers) {
+            data.teachers.forEach((teacher, i) => {
+              nodes.add(createNode(teacher, {
+                shape: 'ellipse',
+                color: '#FFA07A',
+                font: { size: 14 }
+              }));
+
+              const relation = data.teacher_relationships?.[i] || '教授';
+              edges.add(createEdge(teacher, data.course_name, {
+                label: relation,
+                color: '#FF6347'
+              }));
+            });
+          }
+
+          renderGraph(nodes, edges);
+        }
+
+        // 绘制教师关系图
+        function drawTeacherGraph(data) {
+          const nodes = new vis.DataSet();
+          const edges = new vis.DataSet();
+
+          // 添加教师节点
+          nodes.add(createNode(data.teacher.name, {
+            shape: 'ellipse',
+            color: '#FFA07A',
+            size: 25,
+            font: { size: 16, bold: true }
+          }));
+
+          // 添加教授课程
+          if (data.courses) {
+            data.courses.forEach((courseObj, i) => {
+              nodes.add(createNode(courseObj.course, {
+                shape: 'box',
+                color: '#4A90E2',
+                font: { size: 14 }
+              }));
+
+              edges.add(createEdge(data.teacher.name, courseObj.course, {
+                label: courseObj.relation || '教授',
+                color: '#FF6347',
+                smooth: { type: 'continuous', roundness: 0.3 + i * 0.1 }
+              }));
+            });
+          }
+
+          // 添加所属学院
+          if (data.school?.name) {
+            nodes.add(createNode(data.school.name, {
+              shape: 'database',
+              color: '#7EC699'
+            }));
+
+            edges.add(createEdge(data.teacher.name, data.school.name, {
+              label: data.school.relation || '隶属于',
+              color: '#5FB27C',
+              smooth: { type: 'continuous', roundness: 0.5 }
+            }));
+          }
+
+          renderGraph(nodes, edges);
+        }
+
+        // 创建节点辅助函数
+        function createNode(id, options = {}) {
+          return {
+            id,
+            label: id,
+            font: { size: 14, color: '#ffffff' },
+            margin: 10,
+            borderWidth: 2,
+            shadow: true,
+            ...options
+          };
+        }
+
+        // 创建边辅助函数
+        function createEdge(from, to, options = {}) {
+          return {
+            from,
+            to,
+            arrows: 'to',
+            width: 2,
+            font: { size: 12, align: 'middle', background: 'white' },
+            smooth: { type: 'continuous', roundness: 0.3 },
+            color: '#B0C4DE', // 设置边的颜色为浅蓝色
+            ...options
+          };
+        }
+
+        // 渲染图形
+        function renderGraph(nodes, edges) {
+          const container = document.getElementById('graph');
+          container.innerHTML = '';
+
+          const graphData = { nodes, edges };
+          const options = {
+            nodes: {
+              borderWidth: 2,
+              shadow: true,
+              margin: 10
+            },
+            edges: {
+              width: 2,
+              font: {
+                size: 12,
+                strokeWidth: 0,
+                align: 'middle',
+                background: 'white'
+              },
+              smooth: {
+                type: 'continuous'
+              },
+              arrows: {
+                to: {
+                  scaleFactor: 0.5
+                }
+              }
+            },
+            physics: {
+              enabled: true,
+              solver: 'forceAtlas2Based',
+              forceAtlas2Based: {
+                gravitationalConstant: -50,
+                centralGravity: 0.01,
+                springLength: 200,
+                springConstant: 0.08,
+                damping: 0.4,
+                avoidOverlap: 1
+              }
+            },
+            interaction: {
+              hover: true,
+              tooltipDelay: 200
+            }
+          };
+
+          new vis.Network(container, graphData, options);
+        }
+      });
+
+      function searchCourse() {
+        const targetElement = document.getElementById('heng2');
+
+        // 确保目标元素存在
+        if (targetElement) {
+          const targetPosition = targetElement.offsetTop;
+
+          console.log('目标元素的位置:', targetPosition); // 调试信息
+
+          window.scrollTo({
+            top: targetPosition,  // 滚动到目标元素的位置
+            behavior: 'smooth'    // 平滑滚动
+          });
+        } else {
+          console.log('目标元素 #heng2 未找到');
+        }
+      }
+
+    </script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOMContentLoaded event fired');  // 确认 DOM 加载完成
+
+        // 确保按钮和目标元素存在
+        const searchButton1 = document.getElementById("button1");
+        const searchButton2 = document.getElementById("button2");
+        const targetElement = document.getElementById("heng2"); // 改为 id="heng2"
+
+        // 调试信息
+        console.log('searchButton1:', searchButton1);
+        console.log('searchButton2:', searchButton2);
+        console.log('targetElement:', targetElement);
+
+        // 确保按钮和目标元素都存在，绑定事件
+        if ((searchButton1 && targetElement) || (searchButton2 && targetElement)) {
+          console.log('Button and target element found, adding event listener.');
+
+          // 监听按钮点击事件
+          if (searchButton1) {
+            searchButton1.addEventListener("click", function() {
+              console.log('Button1 clicked, scrolling to target element.');
+              targetElement.scrollIntoView({
+                behavior: "smooth",  // 平滑滚动
+                block: "start"       // 滚动到元素顶部
+              });
+            });
+          }
+
+          if (searchButton2) {
+            searchButton2.addEventListener("click", function() {
+              console.log('Button2 clicked, scrolling to target element.');
+              targetElement.scrollIntoView({
+                behavior: "smooth",  // 平滑滚动
+                block: "start"       // 滚动到元素顶部
+              });
+            });
+          }
+        } else {
+          console.log('Button or target element not found!');
+        }
+      });
+    </script>
+
+
+
+
+  </div>
+<!-- now !-->
+  <div id="analyze" class="page" style="
+    max-width: 1600px;
+    margin: 20px auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08),
+                0 0 0 1px rgba(0, 0, 0, 0.04),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+    padding: 30px;
+    position: relative;
+    border: 1px solid #e0e0e0;
+    border-top: 1px solid #f0f0f0;
+    border-bottom: 1px solid #d0d0d0;
+    background-color: #fafafa;
+">
+    <!-- 标题区域 -->
+    <h2 style="color: #5c6bc0; margin-bottom: 20px; font-weight: 600; font-size: 28px; text-align: center;">
+      图数据分析
+    </h2>
+    <div style="height: 3px; width: 60px; background: linear-gradient(to right, #5c6bc0, #8e99f3); margin: 0 auto; border-radius: 3px;"></div>
+
+    <p style="color: #555; font-size: 16px; text-align: center; margin-top: 20px;">选择您要展示的数据类型，并点击按钮获取数据：</p>
+
+    <!-- 数据类型选择 -->
+    <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
+      <select id="typeSelect" style="padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #ddd; width: 200px;">
+        <option value="school">学校</option>
+        <option value="class">课程</option>
+        <option value="teacher">教师</option>
+      </select>
+      <button onclick="fetchData()" style="padding: 10px 20px; font-size: 16px; background-color: #8E99F3FF; color: white; cursor: pointer; border-radius: 5px; border: 1px solid #ddd;">
+        获取数据
+      </button>
+    </div>
+
+    <!-- 显示加载提示 -->
+    <div id="loading" class="loading" style="display:none; font-size: 18px; color: #8E99F3FF; text-align: center; margin-top: 20px;">
+      正在加载...
+    </div>
+
+    <!-- 显示数据表格 -->
+    <table id="dataTable" style="width: 100%; margin-top: 30px; border-collapse: separate; border-spacing: 0; display: none; border: 1px solid #ddd; border-radius: 10px; overflow: hidden;">
+      <thead>
+      <tr style="background-color: #8E99F3FF; color: white;">
+        <th style="padding: 12px; text-align: left;">节点名称</th>
+        <th style="padding: 12px; text-align: left;">类别</th>
+        <th style="padding: 12px; text-align: left;">得分</th>
+      </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+
+  <script>
+    // 获取数据并渲染表格
+    function fetchData() {
+      const type = document.getElementById('typeSelect').value; // 获取选择的类型
+      const url = `http://127.0.0.1:5000/api/searchCourse?type_name=${type}`; // 拼接接口URL
+
+      // 显示加载中
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('dataTable').style.display = 'none';
+
+      // 请求数据
+      fetch(url)
+              .then(response => response.json())
+              .then(data => {
+                // 隐藏加载提示，显示表格
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dataTable').style.display = 'table';
+
+                // 渲染表格
+                const tableBody = document.getElementById('tableBody');
+                tableBody.innerHTML = ''; // 清空表格内容
+                data.forEach(item => {
+                  const row = document.createElement('tr');
+                  row.style.backgroundColor = '#f9f9f9'; // 设置行背景色
+                  row.innerHTML = `
+                            <td style="padding: 12px; text-align: left;">${item.NodeName}</td>
+                            <td style="padding: 12px; text-align: left;">${item.category}</td>
+                            <td style="padding: 12px; text-align: left;">${item.score}</td>
+                        `;
+                  tableBody.appendChild(row);
+                });
+              })
+              .catch(error => {
+                console.error('获取数据时出错:', error);
+                alert('获取数据失败，请稍后重试！');
+              });
+    }
+  </script>
+
+
+</div>
+
+<script>
+  // 图表实例存储
+  const charts = {
+    chart1: null,
+    chart2: null,
+    chart3: null,
+    chart4: null,
+    chart5: null,
+    chart6: null
+  };
+
+  // 页面切换功能
+  const navItems = document.querySelectorAll('.nav-item');
+  const pages = document.querySelectorAll('.page');
+
+  function switchPage(pageId) {
+    // 更新导航状态
+    navItems.forEach(i => i.classList.remove('active'));
+    document.querySelector(`.nav-item[data-page="${pageId}"]`).classList.add('active');
+
+    // 更新页面显示
+    pages.forEach(page => page.classList.toggle('active', page.id === pageId));
+
+    // 保存当前页面
+    localStorage.setItem('activePage', pageId);
+
+    // 如果是图表页面，重新调整图表大小
+    if (pageId === 'chart') {
+      setTimeout(() => {
+        Object.values(charts).forEach(chart => {
+          if (chart) chart.resize();
+        });
+      }, 300);
+    }
+  }
+
+  // 初始化页面切换
+  navItems.forEach(item => {
+    item.addEventListener('click', () => switchPage(item.getAttribute('data-page')));
+  });
+
+  // 页面加载时恢复上次访问的页面
+  document.addEventListener('DOMContentLoaded', () => {
+    const activePage = localStorage.getItem('activePage') || 'home';
+    switchPage(activePage);
+
+    // 初始化所有图表
+    initCharts();
+
+    // 设置窗口大小变化监听
+    window.addEventListener('resize', () => {
+      if (document.querySelector('#chart.page.active')) {
+        Object.values(charts).forEach(chart => {
+          if (chart) chart.resize();
+        });
+      }
+    });
+  });
+
+  // 初始化所有图表
+  function initCharts() {
+    initChart1();
+    initChart2();
+    initChart3();
+    initChart4();
+    initChart5();
+    initChart6();
+  }
+
+  function initChart1() {
+    fetch('http://localhost:5000/api/chart1')
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                // 将数据转换为数组并排序
+                const sortedData = Object.entries(data.data)
+                        .sort((a, b) => b[1] - a[1]); // 按值降序排序
+
+                // 分离排序后的课程和值
+                const courses = sortedData.map(item => item[0]);
+                const values = sortedData.map(item => item[1]);
+
+                charts.chart1 = echarts.init(document.getElementById('chart1'));
+
+                const option = {
+                  backgroundColor: '#ffffff',
+                  grid: {
+                    top: '10%',
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%', // 底部留更多空间给缩放条
+                    containLabel: true
+                  },
+                  tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                      type: 'shadow'
+                    },
+                    formatter: '{b}: {c}'
+                  },
+                  xAxis: {
+                    type: 'category',
+                    data: courses,
+                    axisLabel: {
+                      rotate: 45,
+                      interval: 0, // 强制显示所有标签
+                      fontSize: 10,
+                      formatter: function(value) {
+                        // 过长标签换行处理
+                        if (value.length > 10) {
+                          return value.substring(0, 10) + '\n' + value.substring(10);
+                        }
+                        return value;
+                      }
+                    }
+                  },
+                  yAxis: {
+                    type: 'value',
+                    name: '报名人数',
+                    nameLocation: 'middle',
+                    nameGap: 30
+                  },
+                  series: [{
+                    name: '课程数量',
+                    type: 'bar',
+                    data: values,
+                    itemStyle: {
+                      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: '#a1c4fd' }, // 顶部浅色
+                        { offset: 0.5, color: '#5A9EC9' }, // 中间主色
+                        { offset: 1, color: '#3a7bb7' } // 底部深色
+                      ]),
+                      borderRadius: [4, 4, 0, 0] // 顶部圆角
+                    },
+                    label: {
+                      show: true,
+                      position: 'top',
+                      formatter: '{c}',
+                      color: '#333'
+                    },
+                    barWidth: '60%',
+                    emphasis: { // 选中高亮效果
+                      itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                          { offset: 0, color: '#ff9a9e' }, // 顶部浅红色
+                          { offset: 0.5, color: '#fad0c4' }, // 中间过渡色
+                          { offset: 1, color: '#ff6b8b' } // 底部深红色
+                        ]),
+                        shadowColor: 'rgba(255, 107, 139, 0.5)',
+                        shadowBlur: 10,
+                        shadowOffsetY: 3
+                      },
+                      label: {
+                        fontWeight: 'bold',
+                        color: '#d32f2f'
+                      }
+                    }
+                  }],
+                  dataZoom: [{
+                    type: 'slider',
+                    show: true,
+                    xAxisIndex: [0],
+                    bottom: '5%',
+                    height: 20,
+                    handleSize: '80%',
+                    start: 0,
+                    end: 50,
+                    fillerColor: 'rgba(90, 158, 201, 0.2)',
+                    borderColor: '#5A9EC9',
+                    handleStyle: {
+                      color: '#5A9EC9',
+                      borderColor: '#5A9EC9'
+                    },
+                    textStyle: {
+                      color: '#5A9EC9'
+                    }
+                  }]
+                };
+
+                charts.chart1.setOption(option);
+                setTimeout(() => charts.chart1.resize(), 100);
+              }
+            })
+            .catch(error => {
+              console.error('加载图表数据失败:', error);
+              // 可以在这里添加错误处理，比如显示错误信息
+            });
+  }
+
+  function initChart2() {
+    fetch('http://localhost:5000/api/chart2')
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                // 将数据转换为数组并排序
+                const sortedData = Object.entries(data.data)
+                        .sort((a, b) => b[1] - a[1]); // 按值降序排序
+
+                // 分离排序后的知识点和值
+                const knowledgePoints = sortedData.map(item => item[0]);
+                const values = sortedData.map(item => item[1]);
+
+                charts.chart2 = echarts.init(document.getElementById('chart2'));
+
+                const option = {
+                  backgroundColor: '#ffffff',
+                  grid: {
+                    top: '10%',
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%', // 底部留更多空间给长标签
+                    containLabel: true
+                  },
+                  tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                      type: 'shadow'
+                    },
+                    formatter: '{b}: {c}'
+                  },
+                  xAxis: {
+                    type: 'category',
+                    data: knowledgePoints,
+                    axisLabel: {
+                      rotate: 60, // 更大的旋转角度
+                      interval: 0, // 强制显示所有标签
+                      fontSize: 10, // 更小的字体
+                      formatter: function(value) {
+                        // 过长标签换行处理
+                        if (value.length > 10) {
+                          return value.substring(0, 10) + '\n' + value.substring(10);
+                        }
+                        return value;
+                      }
+                    }
+                  },
+                  yAxis: {
+                    type: 'value',
+                    name: '知识点数量',
+                    nameLocation: 'middle',
+                    nameGap: 30
+                  },
+                  series: [{
+                    name: '知识点数量',
+                    type: 'bar',
+                    data: values,
+                    itemStyle: {
+                      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: '#83bff6' },
+                        { offset: 0.5, color: '#188df0' },
+                        { offset: 1, color: '#0077e6' }
+                      ]),
+                      borderRadius: [0, 0, 4, 4] // 底部圆角，与第一个图表相反
+                    },
+                    label: {
+                      show: true,
+                      position: 'top',
+                      formatter: '{c}',
+                      color: '#333'
+                    },
+                    barWidth: '40%', // 更窄的柱条
+                    emphasis: {
+                      itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                          { offset: 0, color: '#ff9a8b' },
+                          { offset: 0.5, color: '#ff6b8b' },
+                          { offset: 1, color: '#ff4d6d' }
+                        ])
+                      }
+                    }
+                  }],
+                  dataZoom: [ // 添加数据缩放功能
+                    {
+                      type: 'slider',
+                      show: true,
+                      xAxisIndex: [0],
+                      bottom: '5%',
+                      height: 20,
+                      handleSize: '100%',
+                      start: 0,
+                      end: 50 // 初始显示50%的数据
+                    }
+                  ]
+                };
+
+                charts.chart2.setOption(option);
+                setTimeout(() => charts.chart2.resize(), 100);
+              }
+            })
+            .catch(error => {
+              console.error('加载知识点数据失败:', error);
+              // 可以在这里添加错误处理，比如显示错误信息
+            });
+  }
+
+  function initChart3() {
+    // 确保容器存在且有尺寸
+    const container = document.getElementById('chart3');
+    if (!container) {
+      console.error('找不到chart3容器');
+      return;
+    }
+
+    container.innerHTML = ''; // 清空容器
+    container.style.width = '100%';
+    container.style.height = '100vh';  // 设置容器高度为视口高度，确保饼图尽量大
+
+    // 销毁旧实例
+    if (charts.chart3) {
+      charts.chart3.dispose();
+    }
+
+    // 从 API 获取数据
+    fetch('http://localhost:5000/api/chart3')
+            .then(response => response.json())
+            .then(data => {
+              // 检查数据格式
+              if (!data || !data.data || typeof data.data !== 'object') {
+                throw new Error('API返回的数据格式不正确');
+              }
+
+              // 转换数据格式为饼图所需的格式
+              const pieData = Object.entries(data.data).map(([name, value]) => ({
+                name: name,
+                value: value
+              }));
+
+              console.log('饼图数据:', pieData); // 检查转换后的数据
+
+              // 初始化图表
+              charts.chart3 = echarts.init(container);
+
+              const option = {
+                title: {
+                  show: false, // 不显示标题
+                },
+                tooltip: {
+                  trigger: 'item',
+                  formatter: '{b}: {c} ({d}%)'
+                },
+                series: [{
+                  type: 'pie',
+                  radius: '50%',  // 饼图半径
+                  data: pieData,  // 饼图数据
+                  label: {
+                    show: true,
+                    position: 'outside',
+                    formatter: '{b}: {c} ({d}%)'  // 显示百分比
+                  },
+                  emphasis: {
+                    itemStyle: {
+                      shadowBlur: 10,
+                      shadowOffsetX: 0,
+                      shadowColor: 'rgba(0, 0, 0, 0.5)'
+                    }
+                  }
+                }]
+              };
+
+              // 设置图表选项
+              charts.chart3.setOption(option);
+
+              // 初始调整大小
+              setTimeout(() => {
+                charts.chart3.resize();
+              }, 100);
+            })
+            .catch(error => {
+              console.error('加载饼图数据失败:', error);
+            });
+  }
+
+  function initChart4() {
+    // 确保容器存在且有尺寸
+    const container = document.getElementById('chart4');
+    if (!container) {
+      console.error('找不到chart4容器');
+      return;
+    }
+
+    container.innerHTML = ''; // 清空容器
+    container.style.width = '100%';
+    container.style.height = '100vh';  // 设置容器高度为视口高度，确保词云图尽量大
+
+    // 销毁旧实例
+    if (charts.chart4) {
+      charts.chart4.dispose();
+    }
+
+    // 从 API 获取数据
+    fetch('http://localhost:5000/api/chart4')
+            .then(response => response.json())
+            .then(data => {
+              // 检查数据格式
+              if (!data || typeof data !== 'object') {
+                throw new Error('API返回的数据格式不正确');
+              }
+
+              // 转换数据格式
+              const wordData = Object.entries(data).map(([name, value]) => ({
+                name: name,
+                value: value,
+                textStyle: {
+                  fontSize: 15 + value * 4,  // 根据词频设置字体大小
+                  color: getRandomColor()   // 随机颜色
+                }
+              }));
+
+              console.log('词云数据:', wordData); // 检查转换后的数据
+
+              // 初始化图表
+              charts.chart4 = echarts.init(container);
+
+              const option = {
+                title: {
+                  show: false, // 不显示标题
+                },
+                tooltip: {
+                  show: true,
+                  formatter: params => `${params.name}: ${params.value}`
+                },
+                series: [{
+                  type: 'wordCloud',
+                  shape: 'circle',
+                  left: 'center',
+                  top: 'center',
+                  width: '90%',
+                  height: '90%',
+                  sizeRange: [15, 60],  // 设置字体大小范围，确保有明显的大小差异
+                  rotationRange: [-30, 30],  // 限制词语旋转范围
+                  rotationStep: 15,
+                  gridSize: 10,  // 增加网格大小，增加词汇间距
+                  drawOutOfBound: false,
+                  textStyle: {
+                    fontFamily: 'Microsoft YaHei',
+                    fontWeight: 'bold',
+                  },
+                  emphasis: {
+                    focus: 'self',
+                    textStyle: {
+                      textShadowBlur: 10,
+                      textShadowColor: '#333'
+                    }
+                  },
+                  data: wordData
+                }]
+              };
+
+              // 设置图表选项
+              charts.chart4.setOption(option);
+
+              // 添加事件监听
+              charts.chart4.on('finished', function() {
+                console.log('词云图渲染完成');
+              });
+
+              charts.chart4.on('error', function(err) {
+                console.error('词云图渲染错误:', err);
+              });
+
+              // 初始调整大小
+              setTimeout(() => {
+                charts.chart4.resize();
+                console.log('词云图已调整大小');
+              }, 100);
+            })
+            .catch(error => {
+              console.error('加载词云数据失败:', error);
+            });
+
+    // 随机颜色函数
+    function getRandomColor() {
+      return 'rgb(' + [
+        Math.round(Math.random() * 160 + 80),
+        Math.round(Math.random() * 160 + 80),
+        Math.round(Math.random() * 160 + 80)
+      ].join(',') + ')';
+    }
+  }
+
+  function initChart5() {
+    // 确保容器存在且有尺寸
+    const container = document.getElementById('chart5');
+    if (!container) {
+      console.error('找不到chart5容器');
+      return;
+    }
+
+    container.innerHTML = ''; // 清空容器
+    container.style.width = '100%';
+    container.style.height = '100vh';  // 设置容器高度为视口高度，确保折线图尽量大
+
+    // 销毁旧实例
+    if (charts.chart5) {
+      charts.chart5.dispose();
+    }
+
+    // 调用接口获取数据
+    fetch('http://localhost:5000/api/chart5')
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                const schoolNames = Object.keys(data.data);
+                const schoolValues = Object.values(data.data);
+
+                // 初始化折线图
+                charts.chart5 = echarts.init(container);
+
+                const option = {
+                  title: {
+                    show: false,  // 不显示标题
+                  },
+                  tooltip: {
+                    trigger: 'axis',
+                    formatter: '{b}: {c}',
+                  },
+                  xAxis: {
+                    type: 'category',
+                    data: schoolNames,  // X轴为学校名称
+                  },
+                  yAxis: {
+                    type: 'value',
+                    name: '数值',
+                  },
+                  series: [{
+                    data: schoolValues,  // Y轴为学校对应的数值
+                    type: 'line',
+                    smooth: true,
+                    label: {
+                      show: true,
+                      position: 'top',
+                    },
+                    lineStyle: {
+                      color: '#1e90ff',
+                    },
+                    itemStyle: {
+                      color: '#1e90ff',
+                    }
+                  }]
+                };
+
+                charts.chart5.setOption(option);
+                setTimeout(() => charts.chart5.resize(), 100);
+              } else {
+                console.error('数据加载失败');
+              }
+            })
+            .catch(error => {
+              console.error('加载数据失败:', error);
+            });
+  }
+
+  function initChart6() {
+    // 确保容器存在且有尺寸
+    const container = document.getElementById('chart6');
+    if (!container) {
+      console.error('找不到chart6容器');
+      return;
+    }
+
+    container.innerHTML = ''; // 清空容器
+    container.style.width = '100%';
+    container.style.height = '100vh';  // 设置容器高度为视口高度，确保饼图尽量大
+
+    // 销毁旧实例
+    if (charts.chart6) {
+      charts.chart6.dispose();
+    }
+
+    // 调用接口获取数据
+    fetch('http://localhost:5000/api/chart5')
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                const schoolNames = Object.keys(data.data);
+                const schoolValues = Object.values(data.data);
+
+                // 初始化饼图
+                charts.chart6 = echarts.init(container);
+
+                const option = {
+                  title: {
+                    show: false,  // 不显示标题
+                  },
+                  tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}: {c} ({d}%)'  // 显示百分比
+                  },
+                  series: [{
+                    type: 'pie',  // 设置为饼图
+                    radius: '50%',  // 饼图半径
+                    data: schoolNames.map((name, index) => ({
+                      name: name,
+                      value: schoolValues[index],
+                    })),
+                    label: {
+                      show: true,
+                      position: 'outside',
+                      formatter: '{b}: {c} ({d}%)'  // 显示数据标签
+                    },
+                    emphasis: {
+                      itemStyle: {
+                        shadowBlur: 10,
+                        shadowOffsetX: 0,
+                        shadowColor: 'rgba(0, 0, 0, 0.5)'
+                      }
+                    }
+                  }]
+                };
+
+                charts.chart6.setOption(option);
+                setTimeout(() => charts.chart6.resize(), 100);
+              } else {
+                console.error('数据加载失败');
+              }
+            })
+            .catch(error => {
+              console.error('加载数据失败:', error);
+            });
+  }
+</script>
+</body>
+</html>

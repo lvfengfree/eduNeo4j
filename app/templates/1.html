@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Relationship Creation</title>
+</head>
+<body>
+    <h1>Create Dynamic Relationship in Neo4j</h1>
+    
+    <form id="relationForm">
+        <!-- 选择节点 -->
+        <label for="node1">Choose first node type:</label>
+        <select id="node1" name="node1">
+            <option value="Instructor">Instructor</option>
+            <option value="Course">Course</option>
+            <option value="School">School</option>
+        </select><br><br>
+
+        <label for="node1Name">Enter first node name:</label>
+        <input type="text" id="node1Name" name="node1Name" required><br><br>
+
+        <label for="node2">Choose second node type:</label>
+        <select id="node2" name="node2">
+            <option value="Instructor">Instructor</option>
+            <option value="Course">Course</option>
+            <option value="School">School</option>
+        </select><br><br>
+
+        <label for="node2Name">Enter second node name:</label>
+        <input type="text" id="node2Name" name="node2Name" required><br><br>
+
+        <!-- 选择关系类型 -->
+        <label for="relationshipType">Choose relationship type:</label>
+        <select id="relationshipType" name="relationshipType">
+            <option value="教授">教授</option>
+            <option value="隶属于">隶属于</option>
+            <option value="先修课程">先修课程</option>
+            <option value="同一领域">同一领域</option>
+        </select><br><br>
+
+        <button type="submit">Create Relationship</button>
+    </form>
+
+    <script>
+        document.getElementById('relationForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const node1 = document.getElementById('node1').value;
+            const node1Name = document.getElementById('node1Name').value;
+            const node2 = document.getElementById('node2').value;
+            const node2Name = document.getElementById('node2Name').value;
+            const relationshipType = document.getElementById('relationshipType').value;
+
+            // 创建关系的请求
+            fetch('http://localhost:3000/createRelation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ node1, node1Name, node2, node2Name, relationshipType })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);  // 提示创建成功
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('创建关系时出错');
+            });
+        });
+    </script>
+</body>
+</html>
